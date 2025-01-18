@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin View</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"
+    integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+  <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
+
+  <style>
+    * {
+      padding: 0;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    #stream-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .video-container {
+      position: relative;
+      width: 300px;
+      height: 200px;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      border: 1px solid #ccc;
+      /* object-fit: cover; */
+    }
+
+    .switch-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.5);
+      color: white;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+
+    .switch-btn:hover {
+      background: rgba(0, 0, 0, 0.7);
+    }
+
+    #video-container {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      /* margin-top: 20px; */
+
+    }
+
+    #active-video {
+      max-width: 100%;
+      height: auto;
+    }
+
+    .page_container {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 25% auto;
+    }
+
+    .main-section {
+      background: #dad7cd;
+      /* height: 100vh; */
+    }
+
+    .navbar {
+      display: flex;
+      width: 100%;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header {
+      width: 100%;
+      background: linear-gradient(to right, #344e41, #588157);
+      color: white;
+    }
+
+    #stream-container {
+      height: 100vh;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #stream-container .video-container {
+      box-shadow: 0px 0px 3px 1px rgba(0, 0, 0, 0.5);
+    }
+
+    #add-remote-desktop {
+      height: 30px;
+      border-radius: 8px;
+      padding: 5px;
+      background-color: #344e41;
+      color: white;
+      font-weight: 600;
+      box-shadow: 0px 0px 3px 1px rgba(0, 0, 0, 0.5);
+    }
+
+    .sidebar {
+      padding: 15px;
+      background-color: white;
+      overflow-y: auto;
+    }
+
+    #active-video::-webkit-media-controls-play-button {
+      display: none;
+    }
+
+    #active-video::-webkit-media-controls-start-playback-button {
+      display: none;
+      /* For iOS Safari */
+    }
+
+    .nav_menu {
+      display: flex;
+      align-items: center;
+      font-size: 19px;
+      list-style: none;
+      gap: 18px;
+      font-weight: 600;
+    }
+
+    .nav_menu li {
+      cursor: pointer;
+    }
+
+    .nav_menu li:hover {
+      color: yellow;
+    }
+  </style>
+</head>
+
+<body>
+  <section class="main-section">
+    <div class="header">
+      <div style="padding: 20px;">
+        <div class="navbar">
+          <div class="left_nav">
+            <h1>Admin Screen Viewer</h1>
+          </div>
+          <div class="right_nav">
+            <div class="nav_menu_container">
+              <ul class="nav_menu">
+                <li>Remotes</li>
+                <li>Users</li>
+                <li>Sign Out</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Button to add remote desktop -->
+    <div class="page_container">
+
+      <!-- List of all remote streams -->
+      <div class="sidebar">
+        <div id="stream-container">
+          <button id="add-remote-desktop">Add Remote</button>
+          <!-- Individual video containers will be inserted here -->
+        </div>
+      </div>
+      <!-- The main video player for active stream -->
+      <div id="video-container">
+        <video id="active-video" autoplay playsinline></video>
+      </div>
+    </div>
+  </section>
+  <script>
+    const socket = io("http://localhost:5000"); // Backend URL
+    let peerConnections = {}; // Store peer connections by roomId
+    let currentStreamId = null; // Track currently active stream
+    let _roomId;
+
+    // When the admin connects to the server
+    socket.on("connect", () => {
+      console.log("Connected to server.");
+    });
+
+    // Handle incoming WebRTC offerMSehitiaftMeSthiaift
+    socket.on("webrtc-offer", async (offer, fromRoomId) => {
+      console.log("offer", offer);
+      console.log("Room Id from admin HTML", fromRoomId)
+      _roomId = fromRoomId;
+      console.log("Received WebRTC offer for room:", fromRoomId);
+      const configuration = {
+        iceServers: [
+          {
+            urls: 'stun:stun.l.google.com:19302' // Default Google STUN server
+          },
+          {
+            urls: 'stun:stun1.l.google.com:19302' // Additional STUN servers
+          },
+          {
+            urls: 'stun:stun2.l.google.com:19302'
+          },
+          {
+            urls: 'stun:stun3.l.google.com:19302'
+          },
+          {
+            urls: 'stun:stun4.l.google.com:19302'
+          },
+          {
+            urls: 'turn:relay1.expressturn.com:3478', // TURN server
+            username: 'efO8XQ995C6NTR8XA7',
+            credential: 'q4zPrbAEwJJH4720'
+          },
+          {
+            urls: 'stun:stun01.sipphone.com' // Additional public STUN server
+          }
+        ]
+      };
+      const peerConnection = new RTCPeerConnection(configuration);
+      peerConnections[fromRoomId] = peerConnection; // Store peer connection for this room
+
+      peerConnection.ontrack = (event) => {
+        console.log("Track received:", event.streams[0]);
+
+        try {
+          // Create a new video element for the stream
+          if (!document.getElementById(`video-${fromRoomId}`)) {
+            const videoElement = document.createElement("video");
+            videoElement.srcObject = event.streams[0];
+            videoElement.autoplay = true;
+            videoElement.playsinline = true;
+            videoElement.id = `video-${fromRoomId}`;
+
+            // Create a button to switch to this stream
+            const switchBtn = document.createElement("div");
+            switchBtn.classList.add("switch-btn");
+            switchBtn.textContent = "Switch";
+            switchBtn.onclick = () => switchToStream(fromRoomId);
+
+            // Create the container for this stream
+            const container = document.createElement("div");
+            container.classList.add("video-container");
+            container.appendChild(videoElement);
+            container.appendChild(switchBtn);
+            // Add the new stream to the stream container
+            document.getElementById("stream-container").appendChild(container);
+          }
+        } catch (err) {
+          console.log("Error in ontrack", err);
+        }
+      };
+
+      peerConnection.onicecandidate = ({ candidate }) => {
+        console.log("socket emit 2 webrtc from admin.html Admin", roomId);
+        if (candidate) {
+          socket.emit("webrtc-candidate", candidate, currentStreamId);
+        }
+      };
+
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      socket.emit("webrtc-answer", answer,
+
+
+
+      ); // Send back the answer to the client
+    });
+
+    // Handle ICE candidates
+    socket.on("webrtc-candidate", async (candidate, fromRoomId) => {
+      console.log("Room ID from webrtc candidate admin HTMl", fromRoomId);
+      await peerConnections[fromRoomId].addIceCandidate(new RTCIceCandidate(candidate));
+
+    });
+
+    // Function to switch to a specific stream (video element)
+    function switchToStream(roomId) {
+      if (currentStreamId !== roomId) {
+        // Set the active video player to this stream
+        const videoElement = document.getElementById(`video-${roomId}`);
+        document.getElementById("active-video").srcObject = videoElement.srcObject;
+        // Highlight the selected stream's button (if you want some visual cue)
+        document.querySelectorAll(".switch-btn").forEach(btn => btn.style.backgroundColor = "rgba(0, 0, 0, 0.5)");
+        const activeBtn = document.querySelector(`#video-${roomId}`).nextElementSibling;
+        activeBtn.style.backgroundColor = "rgba(0, 0, 0, 0.7)"; // Highlight the active stream
+        currentStreamId = roomId;
+      }
+    }
+
+    //Hande Mouse move
+
+    $("#active-video").mousemove(function (e) {
+      let posX = $(this).offset().left;
+      let posY = $(this).offset().top;
+
+      let x = e.pageX - posX;
+      let y = e.pageY - posY;
+
+      let obj = { x, y };
+      obj.roomId = currentStreamId;
+      socket.emit("mouse-move", obj);
+    });
+
+    //Handle Mouse Click
+    $("#active-video").click(function (e) {
+      let obj = { "roomId": currentStreamId };
+      socket.emit("mouse-click", obj);
+    });
+
+    window.addEventListener("keydown", (e) => {
+      const isTypingTarget = ["INPUT", "TEXTAREA"].includes(e.target.tagName) || e.target.isContentEditable;
+      if (isTypingTarget) return;
+
+      console.log(`Key Down: ${e.key}`);
+      socket.emit("key-press", { key: e.key, roomId: currentStreamId });
+
+      if (["Shift", "Control", "Alt", "Backspace", "Enter"].includes(e.key)) {
+        e.preventDefault();
+      }
+    });
+
+
+    // Button click to prompt for room ID and join the room
+    document.getElementById("add-remote-desktop").addEventListener("click", () => {
+      const roomId = prompt("Enter Room ID to join:");
+      if (roomId) {
+        socket.emit("join-room", roomId); // Admin joins the room with roomId
+      }
+    });
+  </script>
+</body>
+
+</html>

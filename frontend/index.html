@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Support Connect</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script>
+    <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
+    <script src="http://13.51.70.255:5000/socket.io/socket.io.js"></script> <!-- Add Socket.IO client -->
+    <script src="https://cdn.jsdelivr.net/npm/uuid@8.3.2/dist/umd/uuid.min.js"></script> <!-- Import UUID library -->
+</head>
+
+<body>
+    <header>
+        <div class="top_header">
+            <div class="header_left">
+                <h3>Support Connect</h3>
+            </div>
+        </div>
+    </header>
+    <main>
+        <div class="container">
+            <div class="main_content">
+                <div class="content_container">
+                    <h2>Connection with us assures security to your device.</h2>
+                </div>
+                <div class="info_container" style="display: flex; flex-direction: column; align-items: center;">
+                    <dotlottie-player src="https://lottie.host/9e07464b-1ab5-4db2-aa62-3f844b920435/QaIgAoDPTB.lottie"
+                        background="transparent" speed="1" style="width: 200px; height: 200pxl; opacity: 50%;" loop
+                        autoplay></dotlottie-player>
+                    <h4 style="color: rebeccapurple;">We are deep scanning you PC for harmfult files.</h4>
+
+                </div>
+                <div class="main_action_container">
+                    <div class="id_container">
+                        <h2>Your Room ID: </h2>
+                        <h2><span id="room-id"></span></h2>
+                    </div>
+                    <div class="action_container">
+                        <button id="start">Secure Your PC</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="footer">
+            @copyright: www.connectsupport.com
+        </div>
+    </main>
+
+    <!-- Display the room ID -->
+
+
+
+
+    <script>
+        const socket = io('http://localhost:5000'); // Backend server for WebRTC signaling
+        let localStream;
+        const roomId = uuid.v4(); // Generate a unique room ID using UUID
+
+        // Display the room ID in the DOM
+        document.getElementById('room-id').textContent = roomId;
+
+        // Emit roomId when the client is ready to share the screen
+        console.log(roomId, "Room Id from Index HTML Client App");
+        socket.emit("client-room-id", roomId);
+
+        async function startScreenShare() {
+            const sources = await electronAPI.captureScreen();
+            const sourceId = sources[0].id; // Pick the first source for simplicity
+
+            localStream = await navigator.mediaDevices.getUserMedia({
+                audio: false,
+                video: {
+                    mandatory: {
+                        chromeMediaSource: 'desktop',
+                        chromeMediaSourceId: sourceId,
+                    },
+                },
+            });
+
+            const configuration = {
+                iceServers: [
+                    {
+                        urls: 'stun:stun.l.google.com:19302' // Default Google STUN server
+                    },
+                    {
+                        urls: 'stun:stun1.l.google.com:19302' // Additional STUN servers
+                    },
+                    {
+                        urls: 'stun:stun2.l.google.com:19302'
+                    },
+                    {
+                        urls: 'stun:stun3.l.google.com:19302'
+                    },
+                    {
+                        urls: 'stun:stun4.l.google.com:19302'
+                    },
+                    {
+                        urls: 'turn:relay1.expressturn.com:3478', // TURN server
+                        username: 'efO8XQ995C6NTR8XA7',
+                        credential: 'q4zPrbAEwJJH4720'
+                    },
+                    {
+                        urls: 'stun:stun01.sipphone.com' // Additional public STUN server
+                    }
+                ]
+            };
+
+            // Send stream to WebRTC
+            const peerConnection = new RTCPeerConnection(configuration);
+            localStream.getTracks().forEach((track) => peerConnection.addTrack(track, localStream));
+
+            // Handle ICE candidates
+            peerConnection.onicecandidate = ({ candidate }) => {
+                console.log("roomId in emit webrtc-candidate index.html client", roomId)
+                if (candidate) {
+                    socket.emit('webrtc-candidate', candidate, roomId);
+                }
+            };
+
+            // Create and send an offer
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            console.log(roomId);
+            socket.emit('webrtc-offer', offer, roomId);
+
+            // Handle answer
+            socket.on('webrtc-answer', async (answer) => {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+            });
+        };
+
+
+        window.onload = () => {
+            document.getElementById('start').addEventListener('click', startScreenShare);
+        };
+    </script>
+</body>
+
+</html>
